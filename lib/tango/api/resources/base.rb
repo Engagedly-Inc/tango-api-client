@@ -25,8 +25,10 @@ module Tango
           raise map_faraday_error(e)
         end
 
-        def post_json(path, body)
-          response = @conn.post(path, body.to_json, "Content-Type" => "application/json")
+        def post_json(path, body, extra_headers = nil)
+          headers = { "Content-Type" => "application/json" }
+          headers.merge!(extra_headers) if extra_headers
+          response = @conn.post(path, body.to_json, headers)
           unless (200..299).cover?(response.status)
             error = Struct.new(:response).new({ status: response.status, body: response.body,
                                                 headers: response.headers })

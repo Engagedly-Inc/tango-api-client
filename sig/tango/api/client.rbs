@@ -4,5 +4,16 @@ module Tango
       VERSION: String
       # See the writing guide of rbs: https://github.com/ruby/rbs#guides
     end
+
+    class Client
+      def initialize: (?Configuration) -> void
+      def catalogs: Resources::Catalogs
+      def accounts: Resources::Accounts
+      def orders: Resources::Orders
+      def funds: Resources::Funds
+      def customers: Resources::Customers
+      def status: Resources::Status
+      def exchange_rates: Resources::ExchangeRates
+    end
   end
 end

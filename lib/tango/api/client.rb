@@ -16,6 +16,8 @@ require_relative "resources/accounts"
 require_relative "resources/orders"
 require_relative "resources/funds"
 require_relative "resources/customers"
+require_relative "resources/status"
+require_relative "resources/exchange_rates"
 
 module Tango
   module Api
@@ -23,6 +25,8 @@ module Tango
     class Client
       def initialize(config = Tango::Api.configuration)
         @config = config
+        raise ArgumentError, "Tango::Api.configuration.base_url is required" if @config.base_url.to_s.strip.empty?
+
         @conn = build_connection
       end
 
@@ -44,6 +48,14 @@ module Tango
 
       def customers
         Resources::Customers.new(@conn)
+      end
+
+      def status
+        Resources::Status.new(@conn)
+      end
+
+      def exchange_rates
+        Resources::ExchangeRates.new(@conn)
       end
 
       private
