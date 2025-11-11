@@ -7,12 +7,12 @@ module Tango
       class Accounts < Base
         # GET /accounts/{accountIdentifier}
         def get(account_identifier)
-          get_json("/accounts/#{account_identifier}")
+          get_json("accounts/#{account_identifier}")
         end
 
         # POST /customers/{customerIdentifier}/accounts
         def create(customer_identifier, body)
-          post_json("/customers/#{customer_identifier}/accounts", body)
+          post_json("customers/#{customer_identifier}/accounts", body)
         end
       end
     end

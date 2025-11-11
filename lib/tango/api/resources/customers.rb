@@ -7,7 +7,7 @@ module Tango
       class Customers < Base
         # POST /customers
         def create(body)
-          post_json("/customers", body)
+          post_json("customers", body)
         end
       end
     end

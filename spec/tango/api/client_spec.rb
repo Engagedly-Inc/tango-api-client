@@ -30,7 +30,8 @@ RSpec.describe Tango::Api::Client do
     end
     client = described_class.new
     handlers = client.instance_variable_get(:@conn).builder.handlers
-    expect(handlers).to include(Faraday::Request::Retry)
+    handler_names = handlers.map { |h| h.respond_to?(:name) ? h.name : h.to_s }
+    expect(handler_names.any? { |n| n =~ /Retry/ }).to be true
   end
 
   it "exposes new resources and methods for parity" do

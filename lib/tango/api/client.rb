@@ -24,7 +24,22 @@ module Tango
     # Public client to interact with Tango API resources via Faraday.
     class Client
       def initialize(config = Tango::Api.configuration)
-        @config = config
+        @config =
+          case config
+          when String
+            cfg = Tango::Api.configuration.dup
+            cfg.base_url = config
+            cfg
+          when Hash
+            cfg = Tango::Api.configuration.dup
+            config.each do |key, value|
+              writer = "#{key}="
+              cfg.public_send(writer, value) if cfg.respond_to?(writer)
+            end
+            cfg
+          else
+            config
+          end
         raise ArgumentError, "Tango::Api.configuration.base_url is required" if @config.base_url.to_s.strip.empty?
 
         @conn = build_connection

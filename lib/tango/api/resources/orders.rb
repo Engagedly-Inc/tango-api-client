@@ -8,23 +8,23 @@ module Tango
         # POST /orders
         def create(body, idempotency_key: nil)
           headers = idempotency_key ? { "Idempotency-Key" => idempotency_key } : nil
-          post_json("/orders", body, headers)
+          post_json("orders", body, headers)
         end
 
         # GET /orders/{order_id}
         def get(order_id)
-          get_json("/orders/#{order_id}")
+          get_json("orders/#{order_id}")
         end
 
         # GET /orders
         def list(params = {})
-          get_json("/orders", params)
+          get_json("orders", params)
         end
 
         # POST /orders/{order_id}/resend
         def resend(order_id, idempotency_key: nil)
           headers = idempotency_key ? { "Idempotency-Key" => idempotency_key } : nil
-          post_json("/orders/#{order_id}/resend", {}, headers)
+          post_json("orders/#{order_id}/resend", {}, headers)
         end
       end
     end

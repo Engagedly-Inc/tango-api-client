@@ -9,7 +9,7 @@ module Tango
         # Arrays are encoded as repeated keys
         def get(params = {})
           query = encode_arrays(params)
-          get_json("/catalogs", query)
+          get_json("catalogs", query)
         end
 
         # Convenience: filter by brandKey

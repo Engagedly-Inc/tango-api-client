@@ -38,6 +38,18 @@ end
 
 client = Tango::Api::Client.new
 
+# Alternatively, pass a base URL string directly
+# (convenient for scripts or isolated clients)
+client = Tango::Api::Client.new("https://integration-api.tangocard.com/raas/v2")
+
+# Or pass a configuration hash for explicit per-client settings
+client = Tango::Api::Client.new(
+  base_url: "https://integration-api.tangocard.com/raas/v2",
+  timeout: 60,
+  retries: { max: 3, base: 0.5, max_delay: 8 },
+  default_headers: { "Accept-Language" => "en-US" }
+)
+
 # Catalogs
 client.catalogs.get(country: 'US', status: 'active', verbose: true, rewardType: ['gift card','payment card'], categoryIds: 'uuid1,uuid2', currency: 'USD')
 
@@ -70,6 +82,10 @@ end
 - Retries apply to idempotent HTTP methods (GET/HEAD/OPTIONS) with backoff and jitter.
 - Ruby >= 3.0 is required.
 - `base_url` is required (e.g., `https://api.tangocard.com/raas/v2`).
+- Initialization options:
+  - Global config (recommended for Rails/apps): use `Tango::Api.configure { ... }` then `Tango::Api::Client.new`.
+  - Per-client overrides: pass a config hash to `Client.new(...)`.
+  - Convenience: passing a base URL string to `Client.new("https://...")` is supported for quick scripts.
 
 ### Examples
 

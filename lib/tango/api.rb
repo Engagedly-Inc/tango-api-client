@@ -23,7 +23,7 @@ module Tango
       attr_accessor :base_url, :timeout, :open_timeout, :retries, :logger, :default_headers, :auth
 
       def initialize
-        @base_url = ENV["TANGO_URL"].to_s.presence
+        @base_url = ENV["TANGO_URL"].to_s.presence || "https://integration-api.tangocard.com/raas/v2"
         @timeout = 45
         @open_timeout = 5
         @retries = { max: 2, base: 0.5, max_delay: 5 }

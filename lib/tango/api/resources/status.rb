@@ -7,7 +7,7 @@ module Tango
       class Status < Base
         # GET /status
         def get
-          get_json("/status")
+          get_json("status")
         end
       end
     end
