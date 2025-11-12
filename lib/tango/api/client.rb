@@ -18,6 +18,7 @@ require_relative "resources/funds"
 require_relative "resources/customers"
 require_relative "resources/status"
 require_relative "resources/exchange_rates"
+require_relative "resources/choice_products"
 
 module Tango
   module Api
@@ -71,6 +72,10 @@ module Tango
 
       def exchange_rates
         Resources::ExchangeRates.new(@conn)
+      end
+
+      def choice_products
+        Resources::ChoiceProducts.new(@conn)
       end
 
       private

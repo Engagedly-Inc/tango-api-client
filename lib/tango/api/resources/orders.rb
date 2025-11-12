@@ -11,7 +11,7 @@ module Tango
           post_json("orders", body, headers)
         end
 
-        # GET /orders/{order_id}
+        # GET /orders/{referenceOrderID}
         def get(order_id)
           get_json("orders/#{order_id}")
         end

@@ -64,6 +64,10 @@ client.accounts.create('customer-identifier', { accountIdentifier: 'new-acc', cu
 
 # Customers
 client.customers.create({ customerIdentifier: 'cust', name: 'ACME Inc.' })
+# List and filter customers
+client.customers.list(displayName: 'ACME', status: 'active')
+# Fetch a specific customer
+client.customers.get('cust')
 
 # Funds
 client.funds.register_card({ accountIdentifier: 'acc', card: { number: '4111...', expiryMonth: '12', expiryYear: '2030' } })
@@ -96,6 +100,11 @@ client.catalogs.get_by_brand_name('Amazon', country: 'US')
 client.catalogs.get_by_utid('UT123456')
 client.catalogs.get_by_reward_name('Gift Card')
 
+# Choice Products
+client.choice_products.get(rewardName: 'Choice', currencyCode: 'USD', countries: ['US'])
+client.choice_products.get_for_utid('UT-CHOICE-123')
+client.choice_products.catalog('UT-CHOICE-123', verbose: true, country: 'US')
+
 # Orders with Idempotency-Key for safe retries
 require 'securerandom'
 idempotency = SecureRandom.uuid
@@ -114,11 +123,48 @@ client.orders.resend('ORDER-123', idempotency_key: idempotency)
 |-----------|-----------------------------------|----------------------------------------------------------------------------------------|----------------------------------------------------|
 | Catalogs  | `Tango::Api::Resources::Catalogs` | `get(params = {})`                                                                     | GET `/catalogs`                                    |
 | Orders    | `Tango::Api::Resources::Orders`   | `create(body)`, `get(order_id)`, `list(params = {})`, `resend(order_id)`               | POST `/orders`; GET `/orders/{id}`; GET `/orders`; POST `/orders/{id}/resend` |
-| Accounts  | `Tango::Api::Resources::Accounts` | `get(account_identifier)`, `create(customer_identifier, body)`                          | GET `/accounts/{accountIdentifier}`; POST `/customers/{customerIdentifier}/accounts` |
-| Customers | `Tango::Api::Resources::Customers`| `create(body)`                                                                         | POST `/customers`                                  |
+| Accounts  | `Tango::Api::Resources::Accounts` | `get(account_identifier)`, `list_for_customer(customer_identifier, params)`, `create(customer_identifier, body)`, `update_under_customer(customer_identifier, account_identifier, body)`, low balance alerts: `list_low_balance_alerts`, `set_low_balance_alert`, `get_low_balance_alert`, `update_low_balance_alert`, `delete_low_balance_alert` | GET `/accounts/{accountIdentifier}`; GET/POST/PATCH/DELETE under `/customers/{customerIdentifier}/accounts/...` |
+| Customers | `Tango::Api::Resources::Customers`| `list(params = {})`, `get(customer_identifier)`, `create(body)`, `accounts(customer_identifier, params)` | GET `/customers`; GET `/customers/{customerIdentifier}`; POST `/customers`; GET `/customers/{customerIdentifier}/accounts` |
 | Funds     | `Tango::Api::Resources::Funds`    | `register_card(body)`, `unregister_card(body)`, `add_funds(body)`                      | POST `/funds/registerCreditCard`; `/funds/unregisterCreditCard`; `/funds/add` |
 | Status    | `Tango::Api::Resources::Status`   | `get`                                                                                  | GET `/status`                                      |
 | Exchange Rates | `Tango::Api::Resources::ExchangeRates` | `get(params = {})`, `get_for_utid(utid, params = {})`                            | GET `/exchangeRates`; GET `/exchangeRates/{utid}`  |
+| Choice Products | `Tango::Api::Resources::ChoiceProducts` | `get(params = {})`, `get_for_utid(utid)`, `catalog(choice_product_utid, params = {})` | GET `/choiceProducts`; GET `/choiceProducts/{utid}`; GET `/choiceProducts/{utid}/catalog` |
+
+### Smoke test
+
+Run a basic end-to-end check against your Tango environment.
+
+Required:
+
+```bash
+export TANGO_URL=https://integration-api.tangocard.com/raas/v2
+export TANGO_PLATFORM=QAPlatform2
+export TANGO_KEY=YOUR_BASIC_KEY
+```
+
+Run:
+
+```bash
+bin/smoke
+```
+
+Optional flags:
+
+- SMOKE_RUN_STATUS=true: call `/status` (may be 404 on RAAS v2)
+- SMOKE_RUN_EXCHANGE_RATES=true: call `/exchangerates`
+- TANGO_RUN_MUTATIONS=true: enable POST flows (create/update/delete)
+
+Optional data variables (used when present):
+
+- TANGO_ACCOUNT_IDENTIFIER, TANGO_CUSTOMER_IDENTIFIER
+- TANGO_ORDER_IDENTIFIER, TANGO_ORDER_AMOUNT (default 100)
+- TANGO_UTID or TANGO_CHOICE_PRODUCT_UTID for order/choice product flows
+- TANGO_RECIPIENT_EMAIL
+- Low balance alerts:
+  - TANGO_LOW_BALANCE_ALERT_BODY (JSON) or individual fields:
+  - TANGO_LOW_BALANCE_ALERT_DISPLAY_NAME, TANGO_LOW_BALANCE_ALERT_THRESHOLD, TANGO_LOW_BALANCE_ALERT_EMAIL
+
+At the end, the script prints a summary of passed/failed checks with statuses and messages.
 
 ## Development
 

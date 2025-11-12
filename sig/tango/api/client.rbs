@@ -14,6 +14,7 @@ module Tango
       def customers: Resources::Customers
       def status: Resources::Status
       def exchange_rates: Resources::ExchangeRates
+      def choice_products: Resources::ChoiceProducts
     end
   end
 end

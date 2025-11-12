@@ -39,6 +39,39 @@ module Tango
           raise map_faraday_error(e)
         end
 
+        def patch_json(path, body, extra_headers = nil)
+          headers = { "Content-Type" => "application/json" }
+          headers.merge!(extra_headers) if extra_headers
+          response = @conn.patch(path, body.to_json, headers)
+          unless (200..299).cover?(response.status)
+            error = Struct.new(:response).new({ status: response.status, body: response.body,
+                                                headers: response.headers })
+            raise map_faraday_error(error)
+          end
+          parse_json_response(response)
+        rescue Faraday::Error => e
+          raise map_faraday_error(e)
+        end
+
+        def delete_json(path)
+          response = @conn.delete(path)
+          ensure_success_or_raise(response)
+          body_text = response.body.to_s
+          return {} if body_text.strip.empty?
+
+          parse_json_response(response)
+        rescue Faraday::Error => e
+          raise map_faraday_error(e)
+        end
+
+        def ensure_success_or_raise(response)
+          return if (200..299).cover?(response.status)
+
+          error = Struct.new(:response).new({ status: response.status, body: response.body,
+                                              headers: response.headers })
+          raise map_faraday_error(error)
+        end
+
         def parse_json_response(res)
           JSON.parse(res.body)
         rescue JSON::ParserError

@@ -1,0 +1,336 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+require "bundler/setup"
+require "json"
+require "securerandom"
+require_relative "../lib/tango/api/client"
+
+def log(title)
+  puts "\n=== #{title} ==="
+end
+
+def pretty(obj)
+  puts JSON.pretty_generate(obj)
+rescue StandardError
+  p obj
+end
+
+def parse_json_safe(str)
+  JSON.parse(str)
+rescue StandardError
+  {}
+end
+
+base_url = ENV.fetch("TANGO_URL", "https://integration-api.tangocard.com/raas/v2")
+platform = ENV.fetch("TANGO_PLATFORM", "QAPlatform2")
+key = ENV.fetch("TANGO_KEY", "apYPfT6HNONpDRUj3CLGWYt7gvIHONpDRUYPfT6Hj")
+
+unless platform && key
+  warn "Set TANGO_PLATFORM and TANGO_KEY in the environment for Basic auth."
+  exit 1
+end
+
+Tango::Api.configure do |c|
+  c.base_url = base_url
+  c.auth = Tango::Api::Auth::Basic.new(platform: platform, key: key)
+end
+
+client = Tango::Api::Client.new
+results = []
+
+def run(step, results)
+  yield
+  results << { step: step, ok: true }
+rescue Tango::Api::Errors::HttpError => e
+  log_http_error(step, e)
+  results << { step: step, ok: false, status: e.status, message: e.message }
+rescue Faraday::ClientError => e
+  log_faraday_error(step, e)
+  results << { step: step, ok: false, status: e.response&.dig(:status), message: e.message }
+end
+
+def log_http_error(step, error)
+  warn "[ERROR] #{step}: #{error.class} status=#{error.status} request_id=#{error.request_id} i18n=#{error.i18n_key}"
+  warn "Message: #{error.message}"
+  warn "Body: #{error.body}"
+end
+
+def log_faraday_error(step, error)
+  warn "[ERROR] #{step}: Faraday #{error.class} status=#{error.response&.dig(:status)}"
+  warn "Body: #{error.response&.dig(:body)}"
+end
+
+def parse_json_or_nil(raw)
+  text = raw.to_s
+  return nil if text.strip.empty?
+
+  JSON.parse(text)
+rescue StandardError
+  nil
+end
+
+# Optional GETs/POSTs driven by env vars
+account_identifier = ENV.fetch("TANGO_ACCOUNT_IDENTIFIER", "testing1234account")
+customer_identifier = ENV.fetch("TANGO_CUSTOMER_IDENTIFIER", "testing1234")
+recipient_email = ENV.fetch("TANGO_RECIPIENT_EMAIL", "tango-client@test.com")
+run_mutations = ENV["TANGO_RUN_MUTATIONS"] == "true"
+order_identifier = ENV.fetch("TANGO_ORDER_IDENTIFIER", "RG251111-140405-60")
+choice_product_utid = ENV.fetch("TANGO_CHOICE_PRODUCT_UTID", "U081773")
+utid = ENV.fetch("TANGO_UTID", "U081773")
+order_amount = ENV.fetch("TANGO_ORDER_AMOUNT", "10")
+credit_card_token = ENV.fetch("TANGO_CREDIT_CARD_TOKEN", "ba3a207e-080e-43ba-81b5-3ebe7f01cf67")
+card = {
+  customerIdentifier: customer_identifier,
+  accountIdentifier: account_identifier,
+  ipAddress: "127.0.0.1",
+  label: "smoke-card",
+  creditCard: { number: "4111111111111111", expiration: "2030-12", verificationNumber: "123" },
+  billingAddress: {
+    firstName: "tango", lastName: "api-client", addressLine1: "123 Main St",
+    city: "Anytown", state: "CA", postalCode: "12345", country: "US",
+    emailAddress: recipient_email
+  }
+}
+register_body = parse_json_or_nil(ENV.fetch("TANGO_CREDIT_CARD_REGISTER_BODY", "")) || card
+# Safe GETs
+if ENV["SMOKE_RUN_STATUS"] == "true"
+  log "Status"
+  run("status.get", results) do
+    pretty client.status.get
+  end
+end
+
+if ENV["SMOKE_RUN_EXCHANGE_RATES"] == "true"
+  log "Exchange Rates (USD/US)"
+  run("exchange_rates.get", results) do
+    pretty client.exchange_rates.get(currency: "USD", country: "US")
+  end
+end
+
+# Funds resource smoke (opt-in)
+if ENV["FUND_RESOURCE"] == "true"
+  log "Funds#list_cards"
+  run("funds.list_cards", results) do
+    params = {
+      customerIdentifier: customer_identifier,
+      accountIdentifier: account_identifier
+    }.compact
+    pretty client.funds.list_cards(params)
+  end
+
+  if credit_card_token
+    log "Funds#get_card (#{credit_card_token})"
+    run("funds.get_card", results) do
+      pretty client.funds.get_card(credit_card_token)
+    end
+  end
+
+  log "Funds#register_card"
+  run("funds.register_card", results) do
+    res = client.funds.register_card(register_body)
+    pretty res
+    credit_card_token ||= res["token"]
+  end
+
+  if credit_card_token
+    log "Funds#unregister_card"
+    run("funds.unregister_card", results) do
+      body = {
+        customerIdentifier: customer_identifier,
+        accountIdentifier: account_identifier,
+        creditCardToken: credit_card_token
+      }
+      pretty client.funds.unregister_card(body)
+    end
+  else
+    warn "No credit card token available; skipping unregister."
+  end
+
+  if credit_card_token
+    log "Funds#create_credit_card_deposit"
+    run("funds.create_credit_card_deposit", results) do
+      body = {
+        customerIdentifier: customer_identifier,
+        accountIdentifier: account_identifier,
+        externalRefID: order_identifier,
+        creditCardToken: credit_card_token,
+        amount: order_amount.to_f
+      }
+      pretty client.funds.create_credit_card_deposit(body)
+    end
+  else
+    warn "No credit card token available; skipping deposit."
+  end
+end
+
+log "Catalogs (US)"
+run("catalogs.get", results) do
+  res = client.catalogs.get(country: "US")
+  if res.is_a?(Hash) && res["brands"].is_a?(Array)
+    pretty({ "brands_count" => res["brands"].size, "first_brand" => res["brands"].first })
+  else
+    pretty res
+  end
+end
+
+log "Choice Products (US)"
+run("choice_products.get", results) do
+  pretty client.choice_products.get(rewardName: "Choice", currencyCode: "USD", countries: ["US"])
+end
+
+if account_identifier
+  log "Accounts#get (#{account_identifier})"
+  run("accounts.get", results) do
+    pretty client.accounts.get(account_identifier)
+  end
+end
+
+if customer_identifier
+  log "Customers#list"
+  run("customers.list", results) do
+    pretty client.customers.list
+  end
+
+  log "Customers#get (#{customer_identifier})"
+  run("customers.get", results) do
+    pretty client.customers.get(customer_identifier)
+  end
+
+  log "Customers#accounts (#{customer_identifier})"
+  run("customers.accounts", results) do
+    pretty client.customers.accounts(customer_identifier)
+  end
+
+  log "Customers#create (customer: #{customer_identifier})"
+  run("customers.create", results) do
+    body = {
+      customerIdentifier: ENV.fetch("TANGO_NEW_ACCOUNT_IDENTIFIER", "tango-client-#{Time.now.to_i}"),
+      displayName: ENV.fetch("TANGO_ACCOUNT_DISPLAY_NAME", "Smoke Test Account")
+    }
+    pretty client.customers.create(body)
+  end
+
+  log "Accounts#list_for_customer (#{customer_identifier})"
+  run("accounts.list_for_customer", results) do
+    pretty client.accounts.list_for_customer(customer_identifier)
+  end
+end
+
+if run_mutations && customer_identifier
+  log "Accounts#create (customer: #{customer_identifier})"
+  run("accounts.create", results) do
+    body = {
+      accountIdentifier: ENV.fetch("TANGO_NEW_ACCOUNT_IDENTIFIER", "tango-client-#{Time.now.to_i}"),
+      displayName: ENV.fetch("TANGO_ACCOUNT_DISPLAY_NAME", "Smoke Test Account"),
+      contactEmail: ENV.fetch("TANGO_ACCOUNT_CONTACT_EMAIL", recipient_email)
+    }
+    pretty client.accounts.create(customer_identifier, body)
+  end
+end
+
+if customer_identifier && account_identifier
+  log "Low Balance Alerts#list (customer: #{customer_identifier}, account: #{account_identifier})"
+  run("low_balance_alerts.list", results) do
+    pretty client.accounts.list_low_balance_alerts(customer_identifier, account_identifier)
+  end
+end
+
+if run_mutations && customer_identifier && account_identifier
+  alert_body_json = ENV.fetch("TANGO_LOW_BALANCE_ALERT_BODY", nil)
+  parsed = parse_json_or_nil(alert_body_json)
+  alert_body = parsed || {
+    "balanceAlertDisplayName" => ENV.fetch("TANGO_LOW_BALANCE_ALERT_DISPLAY_NAME", "Smoke Alert"),
+    "balanceAlertThreshold" => ENV.fetch("TANGO_LOW_BALANCE_ALERT_THRESHOLD", "100").to_f,
+    "balanceAlertNotification" => [
+      { "emailAddress" => ENV.fetch("TANGO_LOW_BALANCE_ALERT_EMAIL", recipient_email) }
+    ]
+  }
+
+  log "Low Balance Alerts#set"
+  created_alert = nil
+  run("low_balance_alerts.set", results) do
+    created_alert = client.accounts.set_low_balance_alert(customer_identifier, account_identifier, alert_body)
+    pretty created_alert
+  end
+
+  alert_identifier = created_alert&.dig("balanceAlertID") || ENV.fetch("TANGO_LOW_BALANCE_ALERT_IDENTIFIER", nil)
+
+  # Prepare update body outside of nested blocks
+  update_body_json = ENV.fetch("TANGO_LOW_BALANCE_ALERT_UPDATE_BODY", nil)
+  parsed_update = parse_json_or_nil(update_body_json)
+  update_body = parsed_update || alert_body
+
+  if alert_identifier
+    log "Low Balance Alerts#get (#{alert_identifier})"
+    run("low_balance_alerts.get", results) do
+      pretty client.accounts.get_low_balance_alert(customer_identifier, account_identifier, alert_identifier)
+    end
+
+    log "Low Balance Alerts#update (#{alert_identifier})"
+    run("low_balance_alerts.update", results) do
+      pretty client.accounts.update_low_balance_alert(customer_identifier, account_identifier, alert_identifier,
+                                                      update_body)
+    end
+
+    log "Low Balance Alerts#delete (#{alert_identifier})"
+    run("low_balance_alerts.delete", results) do
+      pretty client.accounts.delete_low_balance_alert(customer_identifier, account_identifier, alert_identifier)
+    end
+  else
+    warn "No alert identifier found; set TANGO_LOW_BALANCE_ALERT_IDENTIFIER to exercise get/update/delete."
+  end
+end
+
+if choice_product_utid
+  log "Choice Products#get_for_utid (#{choice_product_utid})"
+  run("choice_products.get_for_utid", results) do
+    pretty client.choice_products.get_for_utid(choice_product_utid)
+  end
+  log "Choice Products#catalog (#{choice_product_utid})"
+  run("choice_products.catalog", results) do
+    pretty client.choice_products.catalog(choice_product_utid, verbose: true, country: "US")
+  end
+end
+
+if customer_identifier
+  log "Orders#list"
+  run("orders.list", results) do
+    pretty client.orders.list(customerIdentifier: customer_identifier, accountIdentifier: account_identifier)
+  end
+  if order_identifier
+    log "Orders#get"
+    run("orders.get", results) do
+      pretty client.orders.get(order_identifier)
+    end
+  end
+end
+
+if run_mutations && utid && recipient_email && customer_identifier && account_identifier
+  log "Orders#create"
+  run("orders.create", results) do
+    body = {
+      accountIdentifier: account_identifier,
+      amount: order_amount,
+      customerIdentifier: customer_identifier,
+      utid: utid,
+      recipient: { firstName: "puneeth", lastName: "kumar", email: recipient_email },
+      deliveryMethod: "EMAIL"
+    }
+    pretty client.orders.create(body, idempotency_key: ENV.fetch("TANGO_IDEMPOTENCY_KEY", nil))
+  end
+end
+
+log "Summary"
+total = results.size
+passed = results.count { |r| r[:ok] }
+failed = total - passed
+puts "Ran #{total} checks: #{passed} passed, #{failed} failed"
+if failed.positive?
+  puts "Failures:"
+  results.each do |r|
+    next if r[:ok]
+
+    puts "- #{r[:step]}: status=#{r[:status]} message=#{r[:message]}"
+  end
+end
