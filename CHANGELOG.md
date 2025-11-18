@@ -5,8 +5,11 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 - Nothing yet.
 
-## [0.1.1] - 2025-11-12
+## [0.1.2] - 2025-11-12
 - Add Brand Categories resource: `get` method for `/brandCategories` endpoint
+
+## [0.1.1] - 2025-11-12
+- (Version already published)
 
 ## [0.1.0] - 2025-11-07
 - Initial release
