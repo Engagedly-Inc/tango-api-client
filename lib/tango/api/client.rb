@@ -19,6 +19,7 @@ require_relative "resources/customers"
 require_relative "resources/status"
 require_relative "resources/exchange_rates"
 require_relative "resources/choice_products"
+require_relative "resources/brand_categories"
 
 module Tango
   module Api
@@ -76,6 +77,10 @@ module Tango
 
       def choice_products
         Resources::ChoiceProducts.new(@conn)
+      end
+
+      def brand_categories
+        Resources::BrandCategories.new(@conn)
       end
 
       private

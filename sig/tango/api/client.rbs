@@ -15,6 +15,7 @@ module Tango
       def status: Resources::Status
       def exchange_rates: Resources::ExchangeRates
       def choice_products: Resources::ChoiceProducts
+      def brand_categories: Resources::BrandCategories
     end
   end
 end
